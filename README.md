@@ -2,11 +2,11 @@
 Simple game about launching rocket in space. Provides animated rocket, key-control movement, plasma rifle and shining stars. 
 
 # CONTROLS
-`UP` - move up \n
-`DOWN` - move down \n
-`LEFT` - move left \n
-`RIGHT` - move right \n
-`SPACE` - shoot \n
+`UP` - move up  
+`DOWN` - move down  
+`LEFT` - move left  
+`RIGHT` - move right  
+`SPACE` - shoot 
 
 # GAME SCENARIO
 Consept came from video [Garbage and sattelites around Earth. 1957 - 2015](https://www.youtube.com/watch?v=i8U8rmeCnXw) - you can look for inspiration.
