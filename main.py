@@ -4,7 +4,6 @@ import asyncio
 import random
 import sys
 import os
-import traceback
 from physics import update_speed
 from curses_tools import read_controls, draw_frame, get_frame_size
 from obstacles import Obstacle, show_obstacles, has_collision
@@ -59,6 +58,7 @@ async def run_spaceship(canvas, row, column):
     row_speed = column_speed = 0
     global spaceship_frame
     global coroutines
+    global year
     spaceship_collision = False
     while not spaceship_collision:
         maxx, maxy = canvas.getmaxyx()
@@ -75,7 +75,7 @@ async def run_spaceship(canvas, row, column):
 
         frame_rows, frame_columns = get_frame_size(spaceship_frame)
         await sleep(1)
-        if space_pressed:
+        if space_pressed and (year >= 2020):
             coroutines.append(fire(canvas, row, column+2))
 
         draw_frame(canvas, row, column, last_frame, negative=True)
@@ -222,6 +222,7 @@ async def fill_orbit_with_garbage(canvas,max_column):
             await sleep(tics_until_spawn - 1)
         await sleep(1)
 
+
 async def count_years():
     global year
     while True:
@@ -229,31 +230,49 @@ async def count_years():
         await sleep(15)
 
 
+def get_label_center_coords(max_width, str_len):
+    return max_width//2 - str_len//2
+
+
 async def year_label(sub_canvas):
     global year
     event = 0
+    max_row, max_column = sub_canvas.getmaxyx()
     while True:
-        sub_canvas.addstr(1, 1, f'Year: {year}')
+        year_label = f'Year: {year}'
+        sub_canvas.addstr(1,
+                          get_label_center_coords(max_column, len(year_label)),
+                          year_label)
         if year in PHRASES.keys():
             event = year
-            sub_canvas.addstr(2, 1, '{}'.format(PHRASES[year]))
-        if (event + 3) >= year:
-            sub_canvas.addstr(2,1, ' '*17)
+            phrase = PHRASES[year]
+            sub_canvas.addstr(2,
+                              get_label_center_coords(max_column, len(phrase)),
+                              phrase)
+        if event == year-3:
+            sub_canvas.addstr(2,
+                              get_label_center_coords(max_column, len(phrase)),
+                              ' '*len(phrase))
         await sleep(1)
 
 
-def main(canvas):
+def main(canvas, obstacles_visible=False):
     canvas.nodelay(True)
     curses.curs_set(False)
     stars_count = 200
     global year
     global coroutines
     global obstacles
-    max_row, max_column = canvas.getmaxyx()
-    sub_canvas = canvas.derwin(3,20,max_row-5,max_column//2 - 6)
-    #sub_canvas = canvas.derwin(2,max_column, max_row-2, 1)
-    sub_canvas.addstr(1,1, f'Year: {year}')
     space_near_border = 2
+    max_row, max_column = canvas.getmaxyx()
+    sub_canvas_columns = max_column - space_near_border*2
+    sub_canvas_rows = 3
+    sub_canvas_start_row = max_row - 5
+    sub_canvas_start_column = space_near_border + 1
+    sub_canvas = canvas.derwin(sub_canvas_rows,
+                               sub_canvas_columns,
+                               sub_canvas_start_row,
+                               sub_canvas_start_column)
     for _ in range(stars_count):
         coroutines.append(blink(
             canvas,
@@ -273,12 +292,13 @@ def main(canvas):
     coroutines.append(year_counter)
     year_lab = year_label(sub_canvas)
     coroutines.append(year_lab)
-    #run_obstacles = show_obstacles(canvas, obstacles)
-    #coroutines.append(run_obstacles)
+    if obstacles_visible:
+        run_obstacles = show_obstacles(canvas, obstacles)
+        coroutines.append(run_obstacles)
     coroutines.append(spaceship_animation)
     coroutines.append(spaceship)
     loop = 0
-    loops_count = 400
+    loops_count = 500
     while loop < loops_count:
         loop += 1
         for coroutine in coroutines:
