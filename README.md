@@ -22,7 +22,7 @@ Clone or download all files on your computer. Python 3.3 or later version has to
 
 To launch this game type in your console: 
 ```
-$python main.py
+$python3 main.py
 ```
 
 # PROJECT GOALS
