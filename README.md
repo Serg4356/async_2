@@ -2,16 +2,16 @@
 Simple game about launching rocket in space. Provides animated rocket, key-control movement, plasma rifle and shining stars. 
 
 # CONTROLS
-`UP` - move up
-`DOWN` - move down
-`LEFT` - move left
-`RIGHT` - move right
-`SPACE` - shoot
+`UP` - move up \n
+`DOWN` - move down \n
+`LEFT` - move left \n
+`RIGHT` - move right \n
+`SPACE` - shoot \n
 
 # GAME SCENARIO
 Consept came from video [Garbage and sattelites around Earth. 1957 - 2015](https://www.youtube.com/watch?v=i8U8rmeCnXw) - you can look for inspiration.
 
-Game tempo and events are attached to years. 1 year is 1.5 of gameplay. 
+Game tempo and events are attached to years. 1 game year is 1.5 sec of gameplay. 
 We are starting at 1957 - year of first artifitial sattelite launch. Until 1961 space is empty, after that garbage appears. Over time there's more and more garbage and at 2020 you get a plasma rifle to clear your path through it.
 
 # HOW TO INSTALL
