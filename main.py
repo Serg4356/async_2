@@ -19,6 +19,11 @@ spaceship_frame = ''
 year = 1957
 
 
+class GameOver(Exception):
+    def __init__(self):
+        pass
+
+
 def get_frame(file_path):
     with open(file_path, 'r') as file:
         return file.read()
@@ -35,22 +40,21 @@ async def show_gameover(canvas):
         size = 'mini'
     go_frame = get_frame(f'./animations/gameover/gameover_{size}.txt')
     frame_width, frame_height = get_frame_size(go_frame)
-    time.sleep(5)
-    loop = 0
-    loops = 20
-    while loop < loops:
-        loop += 1
-        draw_frame(canvas, rows_number//2 - frame_width//2, columns_number//2 - frame_height//2, go_frame)
+    await sleep(5)
+    for _ in range(30):
+        draw_frame(canvas,
+                   rows_number//2 - frame_width//2,
+                   columns_number//2 - frame_height//2,
+                   go_frame)
         await sleep(1)
-    sys.exit('Game over')
+    raise GameOver()
 
 
 def is_crossing_border(current_position ,shift_direction,
                        frame_length, canvas_size):
-    space_near_border = 1
-    critical_position = canvas_size - frame_length - space_near_border
-    return ((current_position < critical_position) and (shift_direction > 0))\
-           or ((current_position > space_near_border) and (shift_direction < 0))
+    border = canvas_size - frame_length
+    return ((current_position < border) and (shift_direction > 0))\
+           or ((current_position > 0) and (shift_direction < 0))
 
 
 async def run_spaceship(canvas, row, column):
@@ -63,7 +67,10 @@ async def run_spaceship(canvas, row, column):
     while not spaceship_collision:
         maxx, maxy = canvas.getmaxyx()
         rows_direction, columns_direction, space_pressed = read_controls(canvas)
-        row_speed, column_speed = update_speed(row_speed, column_speed, rows_direction, columns_direction)
+        row_speed, column_speed = update_speed(row_speed,
+                                               column_speed,
+                                               rows_direction,
+                                               columns_direction)
         frame_rows, frame_columns = get_frame_size(spaceship_frame)
         if is_crossing_border(row, row_speed, frame_rows, maxx):
             row += row_speed
@@ -86,8 +93,6 @@ async def run_spaceship(canvas, row, column):
     coroutines.append(show_gameover(canvas))
 
 
-
-
 async def animate_spaceship(frame_1, frame_2):
     """Renew spaceship frame but doesnt touch canvas and draw_frame"""
     frames = [frame_1, frame_2]
@@ -100,7 +105,6 @@ async def animate_spaceship(frame_1, frame_2):
 
 def is_collision(row, column, size_rows=1, size_columns=1):
     global obstacles
-    global obstacles_in_last_collision
     for obstacle in obstacles:
         if obstacle.has_collision(
             row,
@@ -108,8 +112,6 @@ def is_collision(row, column, size_rows=1, size_columns=1):
             size_rows,
             size_columns
         ):
-            obstacles_in_last_collision.append(obstacle)
-            obstacles.remove(obstacle)
             obstacle.uid = True
             return True
 
@@ -161,32 +163,34 @@ def choose_star():
 
 
 
-async def fly_garbage(canvas, column, garbage_frame, obstacle, speed=0.5):
+async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
     """Animate garbage, flying from top to bottom.
     Сolumn position will stay same, as specified on start."""
     global obstacles
+    global coroutines
 
     rows_number, columns_number = canvas.getmaxyx()
 
     column = max(column, 0)
     column = min(column, columns_number - 1)
-
     row = 0
+    row_size, column_size = get_frame_size(garbage_frame)
+    obstacle = Obstacle(row, column, row_size, column_size)
+    obstacles.append(obstacle)
 
     while row < rows_number:
-        if not obstacle.uid:
-            draw_frame(canvas, row, column, garbage_frame)
-            obstacle.row = row
-            obstacle.column = column
-            await asyncio.sleep(0)
-            draw_frame(canvas, row, column, garbage_frame, negative=True)
-            row += speed
-        else:
+        if obstacle.uid:
             width, height = get_frame_size(garbage_frame)
+            obstacles.remove(obstacle)
             coroutines.append(explode(canvas, row + width//2, column + height//2))
             return
+        draw_frame(canvas, row, column, garbage_frame)
+        obstacle.row = row
+        obstacle.column = column
+        await asyncio.sleep(0)
+        draw_frame(canvas, row, column, garbage_frame, negative=True)
+        row += speed
     obstacles.remove(obstacle)
-
 
 async def sleep(tics=1):
     for tic in range(tics, 0, -1):
@@ -210,15 +214,11 @@ async def fill_orbit_with_garbage(canvas,max_column):
         tics_until_spawn = get_garbage_delay_tics(year)
         if tics_until_spawn:
             garbage_frame = choose_garbage_frame()
-            row, column = 1, random.randint(1, max_column)
-            row_size, column_size = get_frame_size(garbage_frame)
-            obstacle = Obstacle(row, column, row_size, column_size)
-            obstacles.append(obstacle)
+            column = random.randint(1, max_column)
             coroutines.append(fly_garbage(
                 canvas,
                 column,
-                garbage_frame,
-                obstacle))
+                garbage_frame))
             await sleep(tics_until_spawn - 1)
         await sleep(1)
 
@@ -234,7 +234,7 @@ def get_label_center_coords(max_width, str_len):
     return max_width//2 - str_len//2
 
 
-async def year_label(sub_canvas):
+async def print_event(sub_canvas):
     global year
     event = 0
     max_row, max_column = sub_canvas.getmaxyx()
@@ -278,6 +278,7 @@ def main(canvas, obstacles_visible=False):
             canvas,
             random.randint(space_near_border, max_row-space_near_border),
             random.randint(space_near_border, max_column - space_near_border),
+            random.randint(1,20),
             symbol=choose_star()
         ))
     frame_1 = get_frame('./animations/rocket/rocket_frame_1.txt')
@@ -286,35 +287,39 @@ def main(canvas, obstacles_visible=False):
     rows_center = max_row//2-spaceship_width//2
     columns_center = max_column//2 - spaceship_height//2
     coroutines.append(fill_orbit_with_garbage(canvas, max_column))
-    spaceship = run_spaceship(canvas, rows_center, columns_center)
+
     spaceship_animation = animate_spaceship(frame_1, frame_2)
+    coroutines.append(spaceship_animation)
+
+    spaceship = run_spaceship(canvas, rows_center, columns_center)
+    coroutines.append(spaceship)
+
     year_counter = count_years()
     coroutines.append(year_counter)
-    year_lab = year_label(sub_canvas)
-    coroutines.append(year_lab)
+
+    event_printer = print_event(sub_canvas)
+    coroutines.append(event_printer)
     if obstacles_visible:
         run_obstacles = show_obstacles(canvas, obstacles)
         coroutines.append(run_obstacles)
-    coroutines.append(spaceship_animation)
-    coroutines.append(spaceship)
-    loop = 0
-    loops_count = 500
-    while loop < loops_count:
-        loop += 1
+
+    while True:
         for coroutine in coroutines:
             try:
                 coroutine.send(None)
             except StopIteration:
                 coroutines.remove(coroutine)
+            except GameOver:
+                return
         canvas.border()
         sub_canvas.refresh()
         canvas.refresh()
         time.sleep(0.1)
 
 
-async def blink(canvas, row, column, symbol='*'):
+async def blink(canvas, row, column, offset_ticks, symbol='*'):
     while True:
-        await sleep(random.randint(1,20))
+        await sleep(offset_ticks)
 
         canvas.addstr(row, column, symbol, curses.A_DIM)
         await sleep(20)
