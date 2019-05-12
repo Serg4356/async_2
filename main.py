@@ -50,11 +50,22 @@ async def show_gameover(canvas):
     raise GameOver()
 
 
-def is_crossing_border(current_position ,shift_direction,
-                       frame_length, canvas_size):
-    border = canvas_size - frame_length
-    return ((current_position < border) and (shift_direction > 0))\
-           or ((current_position > 0) and (shift_direction < 0))
+def speed_reduction_near_border(row, column, frame_rows, frame_columns,
+                                maxx, maxy, rows_speed, columns_speed):
+    update_row = row + rows_speed
+    update_column = column + columns_speed
+
+    if update_row > (maxx - frame_rows):
+        update_row = maxx - frame_rows
+    elif update_row < 0:
+        update_row = 0
+
+    if update_column > (maxy - frame_columns):
+        update_column = maxy - frame_columns
+    elif update_column < 0:
+        update_column = 0
+
+    return update_row, update_column
 
 
 async def run_spaceship(canvas, row, column):
@@ -72,10 +83,10 @@ async def run_spaceship(canvas, row, column):
                                                rows_direction,
                                                columns_direction)
         frame_rows, frame_columns = get_frame_size(spaceship_frame)
-        if is_crossing_border(row, row_speed, frame_rows, maxx):
-            row += row_speed
-        if is_crossing_border(column, column_speed, frame_columns, maxy):
-            column += column_speed
+        row, column = speed_reduction_near_border(row, column, frame_rows,
+                                                  frame_columns, maxx,
+                                                  maxy, row_speed,
+                                                  column_speed)
 
         draw_frame(canvas, row, column, spaceship_frame)
         last_frame = spaceship_frame
@@ -87,7 +98,8 @@ async def run_spaceship(canvas, row, column):
 
         draw_frame(canvas, row, column, last_frame, negative=True)
 
-        if is_collision(row, column, frame_rows, frame_columns):
+        if if_collision_append_collision_list(row, column,
+                                              frame_rows, frame_columns):
             spaceship_collision = True
     coroutines.append(explode(canvas, row+frame_rows//2, column+frame_columns//2))
     coroutines.append(show_gameover(canvas))
@@ -103,8 +115,10 @@ async def animate_spaceship(frame_1, frame_2):
             await sleep(1)
 
 
-def is_collision(row, column, size_rows=1, size_columns=1):
+def if_collision_append_collision_list(row, column,
+                                       size_rows=1, size_columns=1):
     global obstacles
+    global obstacles_in_last_collision
     for obstacle in obstacles:
         if obstacle.has_collision(
             row,
@@ -112,7 +126,7 @@ def is_collision(row, column, size_rows=1, size_columns=1):
             size_rows,
             size_columns
         ):
-            obstacle.uid = True
+            obstacles_in_last_collision.append(obstacle)
             return True
 
 
@@ -139,7 +153,7 @@ async def fire(canvas, start_row, start_column, rows_speed=-0.7, columns_speed=0
     curses.beep()
 
     while 0 < row < max_row and 0 < column < max_column:
-        if is_collision(row, column):
+        if if_collision_append_collision_list(row, column):
             return
         canvas.addstr(round(row), round(column), symbol)
         await sleep(1)
@@ -167,6 +181,7 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
     """Animate garbage, flying from top to bottom.
     Сolumn position will stay same, as specified on start."""
     global obstacles
+    global obstacles_in_last_collision
     global coroutines
 
     rows_number, columns_number = canvas.getmaxyx()
@@ -179,11 +194,12 @@ async def fly_garbage(canvas, column, garbage_frame, speed=0.5):
     obstacles.append(obstacle)
 
     while row < rows_number:
-        if obstacle.uid:
-            width, height = get_frame_size(garbage_frame)
-            obstacles.remove(obstacle)
-            coroutines.append(explode(canvas, row + width//2, column + height//2))
-            return
+        if obstacle in obstacles_in_last_collision:
+            coroutines.append(explode(canvas,
+                                      row + row_size//2,
+                                      column + column_size//2))
+            obstacles_in_last_collision.remove(obstacle)
+            break
         draw_frame(canvas, row, column, garbage_frame)
         obstacle.row = row
         obstacle.column = column
